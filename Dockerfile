@@ -1,7 +1,7 @@
 # Multi-stage build setup (https://docs.docker.com/develop/develop-images/multistage-build/)
 
 # Stage 1 (to create a "build" image, ~850MB)
-FROM golang:1.10.1 AS builder
+FROM golang:1.15 AS builder
 RUN go version
 RUN git clone https://github.com/mattheys/PlexCollectionTool /go/src/github.com/mattheys/PlexCollectionTool/
 
