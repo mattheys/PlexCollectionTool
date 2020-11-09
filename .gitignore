@@ -1,4 +1,5 @@
 .vscode/
 cache/
+vendor/
 *.exe
 __debug_bin
