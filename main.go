@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
 	//"go.mongodb.org/mongo-driver/mongo/readpref"
 	"io/ioutil"
 	"log"
@@ -52,6 +53,8 @@ var mongoURI string
 
 var sections getAllSectionsResponse
 var collection *mongo.Collection
+
+var version = "undefined"
 
 func init() {
 
