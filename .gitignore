@@ -1,0 +1,4 @@
+.vscode/
+cache/
+*.exe
+__debug_bin
