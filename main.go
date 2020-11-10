@@ -87,6 +87,9 @@ func init() {
 		log.Fatal("Please set Plex Token and URL")
 	}
 
+	baseURL = strings.TrimSpace(baseURL)
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
 	if cache {
 		path, _ = os.Getwd()
 		path = path + "\\cache\\"
