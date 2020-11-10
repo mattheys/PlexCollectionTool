@@ -32,7 +32,9 @@ jobs:
         fi
 
     - name: Build
+      working-directory: go/src/github.com/mattheys/PlexCollectionTool
       run: go build -v .
 
     - name: Test
+      working-directory: go/src/github.com/mattheys/PlexCollectionTool
       run: go test -v .
