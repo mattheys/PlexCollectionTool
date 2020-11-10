@@ -50,6 +50,7 @@ This tool uses MongoDb, this stores all the data of your movies in an easily que
 # Examples
 ## Update MongoDb
 Update your mongo database with information from your Plex install, this will only add new or updated information and is necessary when there is new content in your library, it can be combined with the following examples.
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -u`
 ## Create/Update Collection by Regex
 Uses Mongo's Regex implimentation, you however can't set options, the case insensitve option is always set.
@@ -59,20 +60,28 @@ This searches for the words elf, christmas, santa and holiday and adds them to a
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -s "\belf\b" -s "\bchristmas\b" -s "\bsanta\b" -s "\bholiday\b"`
 ## Create/Update Collection by IMDb lists
 Create or update a collection called Christmas Movies with the contents of the IMDb list https://www.imdb.com/list/ls000096828/
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828`
 
+
 Add -u to update your MongoDb first before checking the IMDb list
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828 -u`
 
+
 Create or update a collection called Christmas Movies with the contents of two IMDb lists
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828 -i ls006571770`
 ## Purge your Plex Collections
 Purging collections can be slow, this is because it is waiting for the Plex server to finish the request, I will look in the future to see if it's possible to speed this up.
 
 Probably remove all your Collections, unless you have ten thousand movies in a single collection, in which case add another 9 on the end!
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -p 99999`
 
+
 Remove all your Collections that only have a single movie in them
+
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -p 1`
 ## Real world example script
 
