@@ -158,7 +158,7 @@ func addMoviesFromList(listID string) {
 			log.Fatal(errr)
 		}
 		if errr = cursor.All(context.TODO(), &movieResults); errr != nil {
-			log.Fatal(nil)
+			log.Fatal(errr)
 		}
 
 		if len(movieResults) > 0 {
