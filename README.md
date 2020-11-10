@@ -10,7 +10,7 @@ You will require a Plex installation, knowledge of your servers Plex Url (not pl
 You will also need a MongoDb server installed, this can be done quite easily with docker.
 
 ### Install MongoDb in docker
-`docker run --name PCTMongo -d -restart=always -p 27017:27017 mongo`
+`docker run --name PCTMongo -d --restart=always -p 27017:27017 mongo`
 # Usage
 
 ### Environment Variables
