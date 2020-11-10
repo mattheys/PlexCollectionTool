@@ -90,16 +90,17 @@ In the following example the first call updates the MongoDb so it is fully up to
 You will notice the Comic Book Movies collection is made up of 3 IMDb lists, this is a general comic book movie list, a Marvel specific one and a DC list too.
 
 ```
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "Comic Book Movies" -i ls004135985 -i ls041413544 -i ls041927031 -u
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "Marvel Movies" -i ls041413544
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "DC Movies" -i ls041927031
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "2020 Best Movies" -i ls093785287
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "2019 Best Movies" -i ls043474895
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "2010s Best Movies" -i ls021078225
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "2000s Best Movies" -i ls000718410
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "1990s Best Movies" -i ls006658449
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "1980s Best Movies" -i ls006692819
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "Vaguely Christmas" -i ls054635542
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "Top Rom Coms" -i ls059288416
-pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL"YOUR_PLEX_URL -c "Top Action Movies" -i ls063897780 -i ls058416162
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Comic Book Movies" -i ls004135985 -i ls041413544 -i ls041927031 -u
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Marvel Movies" -i ls041413544
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "DC Movies" -i ls041927031
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "2020 Best Movies" -i ls093785287
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "2019 Best Movies" -i ls043474895
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "2010s Best Movies" -i ls021078225
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "2000s Best Movies" -i ls000718410
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "1990s Best Movies" -i ls006658449
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "1980s Best Movies" -i ls006692819
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Vaguely Christmas" -i ls054635542
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Top Rom Coms" -i ls059288416
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Top Action Movies" -i ls063897780 -i ls058416162
+pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Stand Up Comedy" -i ls041728102
 ```
