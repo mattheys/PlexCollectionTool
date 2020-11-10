@@ -11,6 +11,12 @@ You will also need a MongoDb server installed, this can be done quite easily wit
 
 ### Install MongoDb in docker
 `docker run --name PCTMongo -d --restart=always -p 27017:27017 mongo`
+### Run MongoDb in the cloud
+Go to https://cloud.mongodb.com/ and create a free tier which allows databases up to 512MB, this only needs about 100MB per 10,000 movies.
+
+After creating a cluster, click connect, setup the IP whitelisting as you need, either whitelist 1 address or all addresses, then create a user, remember the password you will need it, then click Connect your application and select Node.js 2.2.12 or later this will give you a mongodb:// and not a mongodb+srv:// I will investigate why the latter is not working.
+
+Copy the connection string and fill out the password and dbname (can be anything you like e.g. plex)
 # Usage
 
 ### Environment Variables
