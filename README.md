@@ -21,7 +21,7 @@ You can store your token and url in an environment variable if you don't want to
 ### Command line options
 ```
   -a string    Your plex Access token
-  -b string    The Base url of your plex install without trailing slash
+  -b string    The Base url of your plex install without trailing slash e.g. http://127.0.0.1:32400
   -c string    Name of the Collection to add titles to
   -cache       Cache http get requests, this helps when testing
   -i []string  Lists to add to collection
