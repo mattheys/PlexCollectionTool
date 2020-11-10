@@ -19,6 +19,9 @@ jobs:
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+        path: go/src/github.com/mattheys/PlexCollectionTool
 
     - name: Get dependencies
       run: |
