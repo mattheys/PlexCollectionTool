@@ -1,5 +1,8 @@
 .vscode/
 cache/
 vendor/
+bin/
 *.exe
 __debug_bin
+plexcollections.bat
+build.bat
