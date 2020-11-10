@@ -56,7 +56,11 @@ var collection *mongo.Collection
 
 var version = "undefined"
 
+var sectionIds []string
+
 func init() {
+
+	fmt.Println(version)
 
 	flag.StringVar(&xPlexToken, "a", "", "your plex Access token")
 	flag.StringVar(&baseURL, "b", "", "the Base url of your plex install")
@@ -134,6 +138,15 @@ func main() {
 		}
 	}
 
+	for _, i := range sectionIds {
+		collections := getAllCollections(i)
+		for _, s := range collections.MediaContainer.Metadata {
+			if s.Title == collectionName {
+				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionName)
+			}
+		}
+	}
+
 	fmt.Println("Done")
 }
 
@@ -168,11 +181,21 @@ func addMoviesFromList(listID string) {
 			for _, movie := range movieResults {
 				fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionName)
 				setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionName)
+				sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movie.MediaContainer.LibrarySectionID))
 			}
 		} else {
 			fmt.Printf("Movie not found %s\r\n", record[5])
 		}
 	}
+}
+
+func appendIfMissing(slice []string, i string) []string {
+	for _, ele := range slice {
+		if ele == i {
+			return slice
+		}
+	}
+	return append(slice, i)
 }
 
 func addMoviesToCollection(term string) {
@@ -192,6 +215,7 @@ func addMoviesToCollection(term string) {
 	for _, movie := range movieResults {
 		fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionName)
 		setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionName)
+		sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movie.MediaContainer.LibrarySectionID))
 	}
 }
 
@@ -283,6 +307,23 @@ func setMovieCollection(id string, sectionID string, collectionName string) {
 
 func unlockMovie(id string, sectionID string) {
 	url := fmt.Sprintf("%s/library/sections/%s/all?X-Plex-Token=%s&id=%s&type=1&collection.locked=0", baseURL, sectionID, xPlexToken, id)
+
+	req, _ := http.NewRequest("PUT", url, nil)
+
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("cache-control", "no-cache")
+
+	_, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func updateCollectionSortTitle(id string, sectionID string, title string) {
+	//https://95-216-243-114.12118fe0782b440eb788f368c20b88f6.plex.direct:42404/library/sections/13/all?type=18&id=317651&includeExternalMedia=1&titleSort.value=0000 1980s Best Movies&titleSort.locked=0&X-Plex-Product=Plex Web&X-Plex-Version=4.43.4&X-Plex-Client-Identifier=ztlomnlzbchaxg9ildt1r7qc&X-Plex-Platform=Firefox&X-Plex-Platform-Version=82.0&X-Plex-Sync-Version=2&X-Plex-Features=external-media,indirect-media&X-Plex-Model=bundled&X-Plex-Device=Windows&X-Plex-Device-Name=Firefox&X-Plex-Device-Screen-Resolution=1536x750,1536x864&X-Plex-Token=5Z-kRYkRgFG4paNVsxR9&X-Plex-Language=en-GB
+
+	url := fmt.Sprintf("%s/library/sections/%s/all?X-Plex-Token=%s&id=%s&type=18&titleSort.value=%s&titleSort.locked=0&includeExternalMedia=1", baseURL, sectionID, xPlexToken, id, url.QueryEscape(title))
 
 	req, _ := http.NewRequest("PUT", url, nil)
 
