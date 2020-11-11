@@ -58,6 +58,10 @@ var version = "undefined"
 
 var sectionIds []string
 
+var config ConfigFile
+
+var headers = map[string]string{"Accept": "application/json"}
+
 func init() {
 
 	fmt.Println(version)
@@ -75,6 +79,7 @@ func init() {
 	flag.Parse()
 
 	if baseURL == "" && os.Getenv("PLEX_URL") != "" {
+	if os.IsNotExist(statErr) == false {
 		baseURL = os.Getenv("PLEX_URL")
 	}
 
@@ -152,8 +157,8 @@ func main() {
 
 func addMoviesFromList(listID string) {
 
-	headers := make(map[string]string)
-	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), headers)
+	h := make(map[string]string)
+	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), h)
 
 	r := csv.NewReader(strings.NewReader(string(in)))
 	r.Read()
@@ -341,8 +346,6 @@ func getCollection(id string) getCollectionResponse {
 
 	url := fmt.Sprintf("%s/library/metadata/%s/children?X-Plex-Token=%s", baseURL, id, xPlexToken)
 
-	headers := make(map[string]string)
-	headers["Accept"] = "application/json"
 	sbody := get(url, headers)
 	var xx getCollectionResponse
 	json.Unmarshal(sbody, &xx)
@@ -368,8 +371,6 @@ func deleteCollection(id string) {
 func getAllCollections(sectionID string) getAllCollectionsResponse {
 	url := fmt.Sprintf("%s/library/sections/%s/all?X-Plex-Token=%s&type=18&includeCollection=1", baseURL, sectionID, xPlexToken)
 
-	headers := make(map[string]string)
-	headers["Accept"] = "application/json"
 	sbody := get(url, headers)
 	var xx getAllCollectionsResponse
 	json.Unmarshal(sbody, &xx)
@@ -381,8 +382,7 @@ func getAllCollections(sectionID string) getAllCollectionsResponse {
 func getAllMovies(sectionID string) getAllMoviesResponse {
 
 	url := fmt.Sprintf("%s/library/sections/%s/all?X-Plex-Token=%s", baseURL, sectionID, xPlexToken)
-	headers := make(map[string]string)
-	headers["Accept"] = "application/json"
+
 	sbody := get(url, headers)
 	var xx getAllMoviesResponse
 	json.Unmarshal(sbody, &xx)
@@ -394,8 +394,6 @@ func getAllMovies(sectionID string) getAllMoviesResponse {
 func getAllSections() getAllSectionsResponse {
 	url := fmt.Sprintf("%s/library/sections?X-Plex-Token=%s", baseURL, xPlexToken)
 
-	headers := make(map[string]string)
-	headers["Accept"] = "application/json"
 	sbody := get(url, headers)
 	var xx getAllSectionsResponse
 	json.Unmarshal(sbody, &xx)
@@ -405,8 +403,7 @@ func getAllSections() getAllSectionsResponse {
 
 func getMovie(id string) getMovieResponse {
 	url := fmt.Sprintf("%s/library/metadata/%s?X-Plex-Token=%s", baseURL, id, xPlexToken)
-	headers := make(map[string]string)
-	headers["Accept"] = "application/json"
+
 	sbody := get(url, headers)
 	var xx getMovieResponse
 	json.Unmarshal(sbody, &xx)
@@ -418,7 +415,7 @@ func escape(u string) string {
 	return url.QueryEscape(u)
 }
 
-func get(url string, headers map[string]string) []byte {
+func get(url string, h map[string]string) []byte {
 
 	var body []byte
 
@@ -426,7 +423,7 @@ func get(url string, headers map[string]string) []byte {
 
 		req, _ := http.NewRequest("GET", url, nil)
 
-		for k, v := range headers {
+		for k, v := range h {
 			req.Header.Add(k, v)
 		}
 
