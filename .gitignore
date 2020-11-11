@@ -6,3 +6,4 @@ bin/
 __debug_bin
 plexcollections.bat
 build.bat
+config.yml

@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gopkg.in/yaml.v3"
 
 	//"go.mongodb.org/mongo-driver/mongo/readpref"
 	"io/ioutil"
@@ -23,7 +24,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
-
 	//"strconv"
 
 	"time"
@@ -78,17 +78,35 @@ func init() {
 
 	flag.Parse()
 
-	if baseURL == "" && os.Getenv("PLEX_URL") != "" {
+	_, statErr := os.Stat("config.yml")
 	if os.IsNotExist(statErr) == false {
+		b, readError := ioutil.ReadFile("config.yml")
+		if readError == nil {
+			yaml.Unmarshal(b, &config)
+		}
+	}
+
+	if baseURL == "" {
 		baseURL = os.Getenv("PLEX_URL")
+		if baseURL == "" {
+			baseURL = config.Config.Plex.BaseURL
+		}
 	}
 
-	if mongoURI == "mongodb://127.0.0.1:27017" && os.Getenv("MONGO_URI") != "" {
-		mongoURI = os.Getenv("MONGO_URI")
+	if mongoURI == "mongodb://127.0.0.1:27017" {
+		if os.Getenv("MONGO_URI") != "" {
+			mongoURI = os.Getenv("MONGO_URI")
+		}
+		if config.Config.Mongodb.URI != "" {
+			mongoURI = config.Config.Mongodb.URI
+		}
 	}
 
-	if xPlexToken == "" && os.Getenv("PLEX_TOKEN") != "" {
+	if xPlexToken == "" {
 		xPlexToken = os.Getenv("PLEX_TOKEN")
+		if xPlexToken == "" {
+			xPlexToken = config.Config.Plex.APIKey
+		}
 	}
 
 	if baseURL == "" || xPlexToken == "" {
@@ -132,30 +150,45 @@ func main() {
 		purgeCollections(purge)
 	}
 
+	for _, l := range config.Config.Lists {
+		for _, imdb := range l.ImdbIds {
+			addMoviesFromList(imdb.ID, l.Name)
+		}
+		for _, reg := range l.Regexs {
+			addMoviesToCollection(reg.Search, reg.Options, l.Name)
+		}
+		for _, x := range l.Mongosearchs {
+			fmt.Println(x)
+		}
+		setSearchTitle(l.Name)
+	}
+
 	if len(collectionName) > 0 && len(searchTerms) > 0 {
 		for _, term := range searchTerms {
-			addMoviesToCollection(term)
+			addMoviesToCollection(term, "i", collectionName)
 		}
 	}
 	if len(collectionName) > 0 && len(imdbLists) > 0 {
 		for _, list := range imdbLists {
-			addMoviesFromList(list)
+			addMoviesFromList(list, collectionName)
 		}
 	}
-
-	for _, i := range sectionIds {
-		collections := getAllCollections(i)
-		for _, s := range collections.MediaContainer.Metadata {
-			if s.Title == collectionName {
-				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionName)
-			}
-		}
-	}
-
+	setSearchTitle(collectionName)
 	fmt.Println("Done")
 }
 
-func addMoviesFromList(listID string) {
+func setSearchTitle(collectionString string) {
+	for _, i := range sectionIds {
+		collections := getAllCollections(i)
+		for _, s := range collections.MediaContainer.Metadata {
+			if s.Title == collectionString {
+				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionString)
+			}
+		}
+	}
+}
+
+func addMoviesFromList(listID string, collectionString string) {
 
 	h := make(map[string]string)
 	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), h)
@@ -184,8 +217,8 @@ func addMoviesFromList(listID string) {
 
 		if len(movieResults) > 0 {
 			for _, movie := range movieResults {
-				fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionName)
-				setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionName)
+				fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionString)
+				setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionString)
 				sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movie.MediaContainer.LibrarySectionID))
 			}
 		} else {
@@ -203,9 +236,9 @@ func appendIfMissing(slice []string, i string) []string {
 	return append(slice, i)
 }
 
-func addMoviesToCollection(term string) {
+func addMoviesToCollection(term string, options string, collectionString string) {
 	var movieResults []getMovieResponse
-	filter := bson.M{"mediacontainer.metadata.title": bson.M{"$regex": fmt.Sprintf("\\b%s\\b", term), "$options": "i"}}
+	filter := bson.M{"mediacontainer.metadata.title": bson.M{"$regex": fmt.Sprintf("\\b%s\\b", term), "$options": options}}
 	cursor, errr := collection.Find(context.TODO(), filter)
 
 	if errr != nil {
@@ -218,8 +251,8 @@ func addMoviesToCollection(term string) {
 	fmt.Printf("Found %d matching movies\r\n", len(movieResults))
 
 	for _, movie := range movieResults {
-		fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionName)
-		setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionName)
+		fmt.Printf("  Adding %s to %s\r\n", movie.MediaContainer.Metadata[0].Title, collectionString)
+		setMovieCollection(movie.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movie.MediaContainer.LibrarySectionID), collectionString)
 		sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movie.MediaContainer.LibrarySectionID))
 	}
 }
