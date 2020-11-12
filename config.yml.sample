@@ -1,9 +1,7 @@
 config:
   plex:
-    apiKey: asdf
+    apiKey: YOUR_PLEX_API_KEY
     baseURL: http://127.0.0.1:32400
-  mongodb:
-    uri: mongodb://127.0.0.1:27017
   lists:
     - name: Marvel Movies
       imdb-ids:
@@ -16,9 +14,9 @@ config:
         - id: ls004135985
         - id: ls041413544
         - id: ls041927031
-    - name: Movies with Elf in the title
+    - name: Lego Movies
       regexs:
-        - search: \belf\b
+        - search: \blego\b
           options: i
-        - search: \belf\b
-          options: i
+      imdb-ids:
+        - id: ls041373304

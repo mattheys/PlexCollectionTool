@@ -1,7 +1,9 @@
 .vscode/
 cache/
 vendor/
+.vendor-new/
 bin/
+db/
 *.exe
 __debug_bin
 plexcollections.bat

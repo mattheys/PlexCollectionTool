@@ -2,6 +2,20 @@
 
 
 [[projects]]
+  digest = "1:3f22e587ae8e33666c4fdc0a6a1423176c18ab0ad591c9b6e9532c2c3bf62d1d"
+  name = "github.com/HouzuoGuo/tiedot"
+  packages = [
+    "data",
+    "db",
+    "dberr",
+    "gommap",
+    "tdlog",
+  ]
+  pruneopts = "UT"
+  revision = "96fa90b5e4620f677d2737bc5358329040942adb"
+  version = "3.4"
+
+[[projects]]
   digest = "1:f384edc2ce5312aded183520005bc8cf3ff8d73d04d0c01e0d97aa102baee9b1"
   name = "github.com/aws/aws-sdk-go"
   packages = [
@@ -26,6 +40,14 @@
   pruneopts = "UT"
   revision = "08b7f03ff17d84cee5aa9d90433e5c7f07e2e153"
   version = "v1.35.23"
+
+[[projects]]
+  digest = "1:af43bdaaf86655a2343f113e9b293bbc16b12099eaeb223982bbe4d4c22ba14d"
+  name = "github.com/fatih/structs"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4966fc68f5b7593aafa6cbbba2d65ec6e1416047"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:586ea76dbd0374d6fb649a91d70d652b7fe0ccffb8910a77468e7702e7901f3d"
@@ -166,14 +188,25 @@
   revision = "22f1617af38ed4cd65b3b96e02bab267e560155c"
   version = "v0.3.4"
 
+[[projects]]
+  branch = "v3"
+  digest = "1:229cb0f6192914f518cc1241ede6d6f1f458b31debfa18bf3a5c9e4f7b01e24b"
+  name = "gopkg.in/yaml.v3"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "eeeca48fe7764f320e4870d231902bf9c1be2c08"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/HouzuoGuo/tiedot/db",
+    "github.com/fatih/structs",
     "go.mongodb.org/mongo-driver/bson",
     "go.mongodb.org/mongo-driver/bson/primitive",
     "go.mongodb.org/mongo-driver/mongo",
     "go.mongodb.org/mongo-driver/mongo/options",
+    "gopkg.in/yaml.v3",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

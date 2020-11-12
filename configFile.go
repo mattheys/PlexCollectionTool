@@ -7,9 +7,6 @@ type ConfigFile struct {
 			APIKey  string `yaml:"apiKey"`
 			BaseURL string `yaml:"baseURL"`
 		} `yaml:"plex"`
-		Mongodb struct {
-			URI string `yaml:"uri"`
-		} `yaml:"mongodb"`
 		Lists []struct {
 			Name    string `yaml:"name"`
 			ImdbIds []struct {
