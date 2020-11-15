@@ -7,16 +7,7 @@ Plex Collection Tool enables you to purge, create and update your Plex collectio
 # Prerequisites
 
 You will require a Plex installation, knowledge of your servers Plex Url (not plex.tv) and Api Token.
-You will also need a MongoDb server installed, this can be done quite easily with docker.
 
-### Install MongoDb in docker
-`docker run --name PCTMongo -d --restart=always -p 27017:27017 mongo`
-### Run MongoDb in the cloud
-Go to https://cloud.mongodb.com/ and create a free tier which allows databases up to 512MB, this only needs about 100MB per 10,000 movies.
-
-After creating a cluster, click connect, setup the IP whitelisting as you need, either whitelist 1 address or all addresses, then create a user, remember the password you will need it, then click "Connect your application" and copy the url for Node.js 3.6 or Go 1.4, Node.js should be the default if it's the first time you have used it.
-
-Copy the connection string and fill out the password and dbname (can be anything you like e.g. plex)
 # Usage
 
 ### Environment Variables
@@ -26,7 +17,6 @@ You can store your token and url in an environment variable if you don't want to
 
 `PLEX_URL` stores your base url
 
-`MONGO_URI` stores your MongoDb connection string Uri
 ### Command line options
 ```
   -a string    Your plex Access token
@@ -34,7 +24,6 @@ You can store your token and url in an environment variable if you don't want to
   -c string    Name of the Collection to add titles to
   -cache       Cache http get requests, this helps when testing
   -i []string  Lists to add to collection
-  -m string    MongoDb Connection String URI (default "mongodb://127.0.0.1:27017")
   -p int       Purge movie collections with less than x movies in them
   -s []string  Search term to search for
   -u           Update the local database from plex
@@ -43,17 +32,15 @@ You can store your token and url in an environment variable if you don't want to
 ### Suggestions and other info
 This tool works on all your Movie libraries and you can't currently specify which ones to run it on if you have more than one, this is something I will look to add in the future.
 
-It's probably worth updating your Movie library to disable Automatic collections, or maybe set it to 4 items or more, this way your curated lists won't disappear in a deluge of 1/2 movie collections.
-
-This tool uses MongoDb, this stores all the data of your movies in an easily queryable database, this means it's then possible to search on the IMDb tt number to check if you have a movie and what it's unique id is in Plex.
+This tool uses a local database, this stores all the data of your movies in an easily queryable manner, this means it's then possible to search on the IMDb tt number to check if you have a movie and what it's unique id is in Plex.
 
 # Examples
-## Update MongoDb
-Update your mongo database with information from your Plex install, this will only add new or updated information and is necessary when there is new content in your library, it can be combined with the following examples.
+## Update Local Database
+Update your database with information from your Plex install, this will only add new or updated information and is necessary when there is new content in your library, it can be combined with the following examples.
 
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -u`
 ## Create/Update Collection by Regex
-Uses Mongo's Regex implimentation, you however can't set options, the case insensitve option is always set.
+Uses Go's Regex implimentation, you can only set options via the config file, the case insensitve option is always set for the command line -s parameter.
 
 This searches for the words elf, christmas, santa and holiday and adds them to a Christmas Movies collection.
 
@@ -64,7 +51,7 @@ Create or update a collection called Christmas Movies with the contents of the I
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828`
 
 
-Add -u to update your MongoDb first before checking the IMDb list
+Add -u to update your database first before checking the IMDb list
 
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828 -u`
 
@@ -73,7 +60,6 @@ Create or update a collection called Christmas Movies with the contents of two I
 
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Christmas Movies" -i ls000096828 -i ls006571770`
 ## Purge your Plex Collections
-Purging collections can be slow, this is because it is waiting for the Plex server to finish the request, I will look in the future to see if it's possible to speed this up.
 
 Probably remove all your Collections, unless you have ten thousand movies in a single collection, in which case add another 9 on the end!
 
@@ -85,7 +71,7 @@ Remove all your Collections that only have a single movie in them
 `pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -p 1`
 ## Real world example script
 
-In the following example the first call updates the MongoDb so it is fully up to date to search for all the movies, however it is not on the other lines to speed up their calls. It only needs to be run when new content has been added between runs of PCT.
+In the following example the first call updates the local database so it is fully up to date to search for all the movies, however it is not on the other lines to speed up their calls. It only needs to be run when new content has been added between runs of PCT.
 
 You will notice the Comic Book Movies collection is made up of 3 IMDb lists, this is a general comic book movie list, a Marvel specific one and a DC list too.
 
@@ -103,4 +89,35 @@ pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Vaguely Christmas" -i ls
 pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Top Rom Coms" -i ls059288416
 pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Top Action Movies" -i ls063897780 -i ls058416162
 pct.exe -a "YOUR_PLEX_API_TOKEN" -b "YOUR_PLEX_URL" -c "Stand Up Comedy" -i ls041728102
+```
+
+## Config file
+
+You now have the option to put everything in a configuration file so you can just run the command once without any parameters. Place a config.yml file in the same path as your executable.
+
+You can combine multiple lists and search terms to add to one collection see the following example.
+
+```
+config:
+  plex:
+    apiKey: YOUR_PLEX_API_KEY
+    baseURL: http://127.0.0.1:32400
+  lists:
+    - name: Marvel Movies
+      imdb-ids:
+        - id: ls041413544
+    - name: DC Movies
+      imdb-ids:
+        - id: ls041927031
+    - name: Comic Book Movies
+      imdb-ids:
+        - id: ls004135985
+        - id: ls041413544
+        - id: ls041927031
+    - name: Lego Movies
+      regexs:
+        - search: \blego\b
+          options: i
+      imdb-ids:
+        - id: ls041373304
 ```
