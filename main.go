@@ -79,7 +79,10 @@ func init() {
 	if os.IsNotExist(statErr) == false {
 		b, readError := ioutil.ReadFile("config.yml")
 		if readError == nil {
-			yaml.Unmarshal(b, &config)
+			parseErr := yaml.Unmarshal(b, &config)
+			if parseErr != nil {
+				panic(parseErr)
+			}
 		}
 	}
 
@@ -169,6 +172,8 @@ func addMoviesFromList(listID string, collectionString string) {
 	sem := make(chan int, 4)
 	var wg sync.WaitGroup
 
+	plexCollection := getColletionFromTitle(collectionString)
+
 	h := make(map[string]string)
 	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), h)
 
@@ -189,9 +194,13 @@ func addMoviesFromList(listID string, collectionString string) {
 			movieResult, i := getMovieFromDbByImdbID(fmt.Sprintf("imdb://%s", imdbid))
 
 			if i > 0 {
-				fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-				setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
-				sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
+					fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+				} else {
+					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
+					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+				}
 			} else {
 				fmt.Printf("Movie not found %s\r\n", record[5])
 			}
@@ -199,6 +208,30 @@ func addMoviesFromList(listID string, collectionString string) {
 			<-sem
 		}(record[1])
 	}
+}
+
+func getColletionFromTitle(title string) getCollectionResponse {
+	var retMovie getCollectionResponse
+	for _, section := range sections.MediaContainer.Directory {
+		if section.Type == "movie" { //}&& section.Key == sectionId {
+			collections := getAllCollections(section.Key)
+			for _, collection := range collections.MediaContainer.Metadata {
+				if title == collection.Title {
+					retMovie = getCollection(collection.RatingKey)
+				}
+			}
+		}
+	}
+	return retMovie
+}
+
+func collectionContainsRatingKey(plexCollection getCollectionResponse, ratingKey string) bool {
+	for _, y := range plexCollection.MediaContainer.Metadata {
+		if y.RatingKey == ratingKey {
+			return true
+		}
+	}
+	return false
 }
 
 func appendIfMissing(slice []string, i string) []string {
@@ -211,6 +244,8 @@ func appendIfMissing(slice []string, i string) []string {
 }
 
 func addMoviesToCollection(term string, options string, collectionString string) {
+
+	plexCollection := getColletionFromTitle(collectionString)
 
 	sem := make(chan int, 4)
 	var wg sync.WaitGroup
@@ -226,9 +261,13 @@ func addMoviesToCollection(term string, options string, collectionString string)
 				panic(err)
 			}
 			if matched {
-				fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-				setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
-				sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
+					fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+				} else {
+					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
+					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+				}
 			}
 			wg.Done()
 			<-sem
