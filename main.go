@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -13,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/HouzuoGuo/tiedot/db"
-	"github.com/fatih/structs"
 	"github.com/mitchellh/mapstructure"
 
 	"gopkg.in/yaml.v3"
@@ -21,7 +19,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"os"
 	//"strconv"
@@ -37,28 +34,29 @@ func (i *arrayFlags) Set(value string) error {
 	return nil
 }
 
-var tdmovies *db.Col
+var (
+	tdmovies *db.Col
 
-var searchTerms arrayFlags
-var imdbLists arrayFlags
+	searchTerms arrayFlags
+	imdbLists   arrayFlags
 
-var baseURL string
-var xPlexToken string
-var path string
-var cache bool
-var updateDb bool
-var purge int
-var collectionName string
+	baseURL        string
+	xPlexToken     string
+	path           string
+	cache          bool
+	updateDb       bool
+	purge          int
+	collectionName string
 
-var sections getAllSectionsResponse
+	sections getAllSectionsResponse
 
-var version = "undefined"
+	version = "undefined"
 
-var sectionIds []string
+	sectionIds []string
 
-var config ConfigFile
-
-var headers = map[string]string{"Accept": "application/json"}
+	config  ConfigFile
+	headers = map[string]string{"Accept": "application/json"}
+)
 
 func init() {
 
@@ -108,6 +106,8 @@ func init() {
 	baseURL = strings.TrimSpace(baseURL)
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
+	purge = max(purge, config.Config.Purge)
+
 	if cache {
 		path, _ = os.Getwd()
 		path = path + "\\cache\\"
@@ -121,7 +121,7 @@ func main() {
 
 	sections = getAllSections()
 
-	if updateDb {
+	if updateDb || config.Config.UpdateDB {
 		updatedb()
 	}
 
@@ -130,49 +130,108 @@ func main() {
 	}
 
 	for _, l := range config.Config.Lists {
+		fmt.Printf("Creating/Updating Collection %s\r\n", l.Name)
+
+		plexCollection := getColletionFromTitle(l.Name)
+
+		if l.Trim && strings.ToLower(plexCollection.MediaContainer.Title2) == strings.ToLower(l.Name) {
+			fmt.Printf("  Purging Collection %s\r\n", l.Name)
+			sem := make(chan int, 4)
+			var wg sync.WaitGroup
+			collectionDetail := getCollection(plexCollection.MediaContainer.Key)
+			deleteCollection(plexCollection.MediaContainer.Key)
+			for _, collectionMovie := range collectionDetail.MediaContainer.Metadata {
+				sem <- 1
+				go func(ratingKey string, sectionKey string) {
+					wg.Add(1)
+					unlockMovie(ratingKey, sectionKey)
+					<-sem
+					wg.Done()
+				}(collectionMovie.RatingKey, strconv.Itoa(plexCollection.MediaContainer.LibrarySectionID))
+			}
+			wg.Wait()
+			plexCollection = getColletionFromTitle(l.Name)
+		}
+
+		for _, imdbSearch := range l.ImdbSearchURLs {
+			addMoviesFromIMDbSearch(imdbSearch.URL, imdbSearch.Limit, l.Name, &plexCollection)
+		}
+
 		for _, imdb := range l.ImdbIds {
-			addMoviesFromList(imdb.ID, l.Name)
+			addMoviesFromIMDbList(imdb.ID, l.Name, &plexCollection)
 		}
+
 		for _, reg := range l.Regexs {
-			addMoviesToCollection(reg.Search, reg.Options, l.Name)
+			addMoviesFromRegexSearch(reg.Search, reg.Options, l.Name, &plexCollection)
 		}
+
 		for _, x := range l.Mongosearchs {
 			fmt.Println(x)
 		}
+
 		setSearchTitle(l.Name)
 	}
 
-	if len(collectionName) > 0 && len(searchTerms) > 0 {
-		for _, term := range searchTerms {
-			addMoviesToCollection(term, "i", collectionName)
+	if len(collectionName) > 0 {
+		plexCollection := getColletionFromTitle(collectionName)
+
+		if len(searchTerms) > 0 {
+			for _, term := range searchTerms {
+				addMoviesFromRegexSearch(term, "i", collectionName, &plexCollection)
+			}
 		}
-	}
-	if len(collectionName) > 0 && len(imdbLists) > 0 {
-		for _, list := range imdbLists {
-			addMoviesFromList(list, collectionName)
+
+		if len(imdbLists) > 0 {
+			for _, list := range imdbLists {
+				addMoviesFromIMDbList(list, collectionName, &plexCollection)
+			}
 		}
+
+		setSearchTitle(collectionName)
+
 	}
-	setSearchTitle(collectionName)
+
 	fmt.Println("Done")
 }
 
-func setSearchTitle(collectionString string) {
-	for _, i := range sectionIds {
-		collections := getAllCollections(i)
-		for _, s := range collections.MediaContainer.Metadata {
-			if s.Title == collectionString {
-				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionString)
-			}
-		}
-	}
-}
-
-func addMoviesFromList(listID string, collectionString string) {
+func addMoviesFromRegexSearch(term string, options string, collectionString string, plexCollection *getCollectionResponse) {
 
 	sem := make(chan int, 4)
 	var wg sync.WaitGroup
 
-	plexCollection := getColletionFromTitle(collectionString)
+	tdmovies.ForEachDoc(func(id int, doc []byte) bool {
+		sem <- 1
+		go func(id int, doc []byte) {
+			wg.Add(1)
+			var movieResult getMovieResponse
+			json.Unmarshal(doc, &movieResult)
+			matched, err := regexp.Match(fmt.Sprintf("(?%s)%s", options, term), []byte(movieResult.MediaContainer.Metadata[0].Title))
+			if err != nil {
+				panic(err)
+			}
+			if matched {
+				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
+					//fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+				} else {
+					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
+					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+				}
+			}
+			wg.Done()
+			<-sem
+		}(id, doc)
+		return true
+	})
+	wg.Wait()
+}
+
+func addMoviesFromIMDbList(listID string, collectionString string, plexCollection *getCollectionResponse) {
+
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	//plexCollection := getColletionFromTitle(collectionString)
 
 	h := make(map[string]string)
 	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), h)
@@ -191,22 +250,53 @@ func addMoviesFromList(listID string, collectionString string) {
 		sem <- 1
 		go func(imdbid string) {
 			wg.Add(1)
-			movieResult, i := getMovieFromDbByImdbID(fmt.Sprintf("imdb://%s", imdbid))
-
-			if i > 0 {
-				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
-					fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-				} else {
-					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
-					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
-				}
-			} else {
-				fmt.Printf("Movie not found %s\r\n", record[5])
-			}
+			addMovieToCollection(imdbid, collectionString, plexCollection)
 			wg.Done()
 			<-sem
 		}(record[1])
+	}
+}
+
+func addMoviesFromIMDbSearch(url string, limit int, collectionName string, plexCollection *getCollectionResponse) {
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	for imdbid := range IMDbSearch(url, limit) {
+		sem <- 1
+		go func(IMDbID string) {
+			wg.Add(1)
+			addMovieToCollection(IMDbID, collectionName, plexCollection)
+			wg.Done()
+			<-sem
+		}(imdbid)
+	}
+	wg.Wait()
+}
+
+func addMovieToCollection(imdbid string, collectionString string, plexCollection *getCollectionResponse) {
+	movieResult, i := getMovieFromDbByImdbID(fmt.Sprintf("imdb://%s", imdbid))
+
+	if i > 0 {
+		if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
+			//fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+		} else {
+			fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+			setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
+			sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
+		}
+	} else {
+		//fmt.Printf("Movie not found %s\r\n", record[5])
+	}
+}
+
+func setSearchTitle(collectionString string) {
+	for _, i := range sectionIds {
+		collections := getAllCollections(i)
+		for _, s := range collections.MediaContainer.Metadata {
+			if strings.ToLower(s.Title) == strings.ToLower(collectionString) {
+				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionString)
+			}
+		}
 	}
 }
 
@@ -216,7 +306,7 @@ func getColletionFromTitle(title string) getCollectionResponse {
 		if section.Type == "movie" { //}&& section.Key == sectionId {
 			collections := getAllCollections(section.Key)
 			for _, collection := range collections.MediaContainer.Metadata {
-				if title == collection.Title {
+				if strings.ToLower(title) == strings.ToLower(collection.Title) {
 					retMovie = getCollection(collection.RatingKey)
 				}
 			}
@@ -225,133 +315,13 @@ func getColletionFromTitle(title string) getCollectionResponse {
 	return retMovie
 }
 
-func collectionContainsRatingKey(plexCollection getCollectionResponse, ratingKey string) bool {
+func collectionContainsRatingKey(plexCollection *getCollectionResponse, ratingKey string) bool {
 	for _, y := range plexCollection.MediaContainer.Metadata {
 		if y.RatingKey == ratingKey {
 			return true
 		}
 	}
 	return false
-}
-
-func appendIfMissing(slice []string, i string) []string {
-	for _, ele := range slice {
-		if ele == i {
-			return slice
-		}
-	}
-	return append(slice, i)
-}
-
-func addMoviesToCollection(term string, options string, collectionString string) {
-
-	plexCollection := getColletionFromTitle(collectionString)
-
-	sem := make(chan int, 4)
-	var wg sync.WaitGroup
-
-	tdmovies.ForEachDoc(func(id int, doc []byte) bool {
-		sem <- 1
-		go func(id int, doc []byte) {
-			wg.Add(1)
-			var movieResult getMovieResponse
-			json.Unmarshal(doc, &movieResult)
-			matched, err := regexp.Match(fmt.Sprintf("(?%s)%s", options, term), []byte(movieResult.MediaContainer.Metadata[0].Title))
-			if err != nil {
-				panic(err)
-			}
-			if matched {
-				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
-					fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-				} else {
-					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
-					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
-					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
-				}
-			}
-			wg.Done()
-			<-sem
-		}(id, doc)
-		return true
-	})
-	wg.Wait()
-}
-
-func updatedb() {
-
-	sem := make(chan int, 4)
-	var wg sync.WaitGroup
-
-	for _, section := range sections.MediaContainer.Directory {
-		//if sectionSelector != "" && sectionSelector != section.Key {
-		//	continue
-		//}
-		if section.Type == "movie" {
-			fmt.Println("Processing library " + section.Title)
-
-			movies := getAllMovies(section.Key)
-
-			for idx := range movies.MediaContainer.Metadata {
-				sem <- 1
-				go func(index int, movieList getAllMoviesResponse) {
-					wg.Add(1)
-
-					movie := movieList.MediaContainer.Metadata[index]
-
-					dbMovie, i := getMovieFromDb(movie.RatingKey)
-
-					if i == 0 {
-						fullMovie := getMovie(movie.RatingKey)
-						m := structs.Map(fullMovie)
-						id, err := tdmovies.Insert(m)
-						if err == nil {
-							if len(fullMovie.MediaContainer.Metadata) == 0 {
-								fmt.Println(fullMovie)
-							}
-							for _, meta := range fullMovie.MediaContainer.Metadata {
-								fmt.Println("  Inserted "+meta.Title+" with ID:", id)
-							}
-						} else {
-							panic(err)
-						}
-					} else {
-						if movie.UpdatedAt > dbMovie.MediaContainer.Metadata[0].UpdatedAt {
-							fullMovie := getMovie(movie.RatingKey)
-							m := structs.Map(fullMovie)
-							tdmovies.Update(i, m)
-							fmt.Println("  Updated " + fullMovie.MediaContainer.Metadata[0].Title)
-						}
-					}
-					wg.Done()
-					<-sem
-				}(idx, movies)
-			}
-		}
-	}
-	wg.Wait()
-}
-
-func getMovieFromDb(ratingKey string) (getMovieResponse, int) {
-	var query interface{}
-	var returnMovie getMovieResponse
-	var returnInt int
-	json.Unmarshal([]byte(`{"eq": "`+ratingKey+`", "in": ["MediaContainer", "Metadata", "RatingKey"]}`), &query)
-
-	queryResult := make(map[int]struct{})
-
-	if err := db.EvalQuery(query, tdmovies, &queryResult); err != nil {
-		panic(err)
-	}
-
-	if len(queryResult) > 0 {
-		for i := range queryResult {
-			readback, _ := tdmovies.Read(i)
-			mapstructure.Decode(readback, &returnMovie)
-			returnInt = i
-			break
-		}
-	}
-	return returnMovie, returnInt
 }
 
 func getMovieFromDbByImdbID(IMDbID string) (getMovieResponse, int) {
@@ -513,7 +483,7 @@ func getAllSections() getAllSectionsResponse {
 	return xx
 }
 
-func getMovie(id string) getMovieResponse {
+func getMovieFromPlex(id string) getMovieResponse {
 	url := fmt.Sprintf("%s/library/metadata/%s?X-Plex-Token=%s", baseURL, id, xPlexToken)
 
 	sbody := get(url, headers)
@@ -521,112 +491,4 @@ func getMovie(id string) getMovieResponse {
 	json.Unmarshal(sbody, &xx)
 
 	return xx
-}
-
-func escape(u string) string {
-	return url.QueryEscape(u)
-}
-
-func get(url string, h map[string]string) []byte {
-
-	var body []byte
-
-	if _, err := os.Stat(path + escape(url)); !cache || os.IsNotExist(err) {
-
-		req, _ := http.NewRequest("GET", url, nil)
-
-		for k, v := range h {
-			req.Header.Add(k, v)
-		}
-
-		res, resErr := http.DefaultClient.Do(req)
-
-		if resErr == nil && res.StatusCode >= 200 && res.StatusCode <= 299 {
-
-			defer res.Body.Close()
-
-			if cache {
-				rawresp, err := httputil.DumpResponse(res, true)
-				if err == nil {
-					ioutil.WriteFile(path+escape(url), rawresp, 0644)
-				}
-			}
-			body, _ = ioutil.ReadAll(res.Body)
-		} else {
-			panic(fmt.Sprintf("Response was %s from %s", res.Status, req.Host))
-		}
-
-	} else {
-		f, _ := os.Open(path + escape(url))
-		r := bufio.NewReader(f)
-
-		res, _ := http.ReadResponse(r, nil)
-		body, err = ioutil.ReadAll(res.Body)
-
-		if err != nil {
-			log.Fatal("Can't read file " + path + escape(url))
-		}
-
-		//		if rate, ok := res.Header["X-Ratelimit-Remaining"]; ok {
-		//			if irate, ierr := strconv.Atoi(rate[0]); ierr == nil {
-		//				if irate < 10 {
-		//					time.Sleep(1 * time.Second)
-		//				}
-		//			}
-		//		}
-	}
-
-	return body
-}
-
-func setupDatabase() {
-
-	myDBDir := "./db"
-	myDB, err := db.OpenDB(myDBDir)
-	if err != nil {
-		panic(err)
-	}
-
-	exists := false
-	for _, col := range myDB.AllCols() {
-		if col == "Movies" {
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		if err := myDB.Create("Movies"); err != nil {
-			panic(err)
-		}
-	}
-
-	tdmovies = myDB.Use("Movies")
-
-	exists = false
-	for _, path := range tdmovies.AllIndexes() {
-		if path[0] == "MediaContainer" && path[1] == "Metadata" && path[2] == "RatingKey" {
-			exists = true
-			break
-		}
-	}
-	if !exists {
-		if err := tdmovies.Index([]string{"MediaContainer", "Metadata", "RatingKey"}); err != nil {
-			panic(err)
-		}
-	}
-
-	exists = false
-	for _, path := range tdmovies.AllIndexes() {
-		if path[0] == "MediaContainer" && path[1] == "Metadata" && path[2] == "GUIDs" && path[3] == "ID" {
-			exists = true
-			break
-		}
-	}
-	if !exists {
-		if err := tdmovies.Index([]string{"MediaContainer", "Metadata", "GUIDs", "ID"}); err != nil {
-			panic(err)
-		}
-	}
-
 }

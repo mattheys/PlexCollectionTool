@@ -1,22 +1,51 @@
 config:
   plex:
-    apiKey: YOUR_PLEX_API_KEY
-    baseURL: http://127.0.0.1:32400
+    apiKey: YOUR_PLEX_API_KEY         # Your plex token https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
+    baseURL: http://127.0.0.1:32400   # Base URL of your Plex server, not app.plex.tv
+  updateDb: true                      # Update the localdb when running
+  purge: 1                            # Remove collections with this number or fewer items in
   lists:
+    #Each collection can use between one and all of the following options (imdb-ids, imdb-search, regexs and trim) combined together if required
+
+    #Simple example of a public IMDb user list building a collection
     - name: Marvel Movies
       imdb-ids:
         - id: ls041413544
+
+    #Simple example of a public IMDb user list building a collection
     - name: DC Movies
       imdb-ids:
         - id: ls041927031
+
+    #Simple example of multiple public IMDb user lists building a collection
     - name: Comic Book Movies
       imdb-ids:
         - id: ls004135985
         - id: ls041413544
         - id: ls041927031
+
+    #Example of using a Regex search on Movie Titles to build a collection
     - name: Lego Movies
       regexs:
         - search: \blego\b
           options: i
       imdb-ids:
         - id: ls041373304
+
+    #Example of an IMDb search list building a collection
+    - name: Tom Cruise Movies
+      imdb-search:
+        - url: https://www.imdb.com/search/title/?title_type=feature,tv_movie&role=nm0000129
+
+    #Example of an IMDb search list building a collection, using a limit of 100 items (from the IMDb list) and purging (trim) the collection each time
+    #to remove stale items to keep it in sync
+    - name: Top Popular movies
+      trim: true                    #Delete and rebuild this collection every time to remove stale items from the collection
+      imdb-search:
+        - url: https://www.imdb.com/search/title/?title_type=feature
+          limit: 100
+
+    #Example of removing a collection by using Trim and no options to rebuild afterwards, this method unlocks the Tag.Collections in Plex of each Movies
+    #to ensure that they aren't locked if you are also letting Plex build your collections too.
+    - name: Collection I no longer want
+      trim: true
