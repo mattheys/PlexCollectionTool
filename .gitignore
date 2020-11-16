@@ -6,5 +6,4 @@ bin/
 db/
 *.exe
 __debug_bin
-plexcollections.bat
 config.yml
