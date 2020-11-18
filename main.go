@@ -14,13 +14,14 @@ import (
 	"github.com/HouzuoGuo/tiedot/db"
 	"github.com/mitchellh/mapstructure"
 
-	"gopkg.in/yaml.v3"
-
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	//"time"
+
+	"gopkg.in/yaml.v3"
 	//"strconv"
 )
 
@@ -169,7 +170,13 @@ func main() {
 			fmt.Println(x)
 		}
 
+		plexCollection = getColletionFromTitle(l.Name)
 		setSearchTitle(l.Name)
+
+		if l.Image != "" {
+			setCollectionPoster(l.Image, plexCollection.MediaContainer.Key)
+		}
+
 	}
 
 	if len(collectionName) > 0 {
@@ -192,6 +199,22 @@ func main() {
 	}
 
 	fmt.Println("Done")
+}
+
+func setCollectionPoster(imageURL string, plexCollectionKey string) {
+	url := fmt.Sprintf("%s/library/metadata/%s/posters?includeExternalMedia=1&url=%s&X-Plex-Token=%s",
+		baseURL, plexCollectionKey, url.QueryEscape(imageURL), xPlexToken)
+
+	req, _ := http.NewRequest("POST", url, nil)
+
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("cache-control", "no-cache")
+
+	_, err := http.DefaultClient.Do(req)
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func addMoviesFromRegexSearch(term string, options string, collectionString string, plexCollection *getCollectionResponse) {

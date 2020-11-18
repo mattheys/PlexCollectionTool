@@ -37,6 +37,12 @@ config:
       imdb-search:
         - url: https://www.imdb.com/search/title/?title_type=feature,tv_movie&role=nm0000129
 
+    #Example of setting the poster of a collection to an images
+    - name: James Bond Collection
+      image: https://image.tmdb.org/t/p/w600_and_h900_bestv2/HORpg5CSkmeQlAolx3bKMrKgfi.jpg
+      imdb-ids:
+        - id: ls006405458
+
     #Example of an IMDb search list building a collection, using a limit of 100 items (from the IMDb list) and purging (trim) the collection each time
     #to remove stale items to keep it in sync
     - name: Top Popular movies

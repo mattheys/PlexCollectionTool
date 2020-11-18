@@ -12,6 +12,7 @@ type ConfigFile struct {
 		Lists    []struct {
 			Name    string `yaml:"name"`
 			Trim    bool   `yaml:"trim,omitempty"`
+			Image   string `yaml:"image,omitempty"`
 			ImdbIds []struct {
 				ID string `yaml:"id"`
 			} `yaml:"imdb-ids,omitempty"`
