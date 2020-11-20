@@ -1,23 +1,23 @@
 config:
   plex:
-    apiKey: YOUR_PLEX_API_KEY         # Your plex token https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
-    baseURL: http://127.0.0.1:32400   # Base URL of your Plex server, not app.plex.tv
-  tmdb:
-    apiKey: 83a1d147d36597e5a47d1c7d93e611b8
-    adult: false
-  trakt:
-    oAuth:
-      clientId: 83a1d147d36597e5a47d1c7d93e611b883a1d147d36597e5a47d1c7d93e611b8
-      clientSecret: 83a1d147d36597e5a47d1c7d93e611b883a1d147d36597e5a47d1c7d93e611b8
-  updateDb: true                      # Update the localdb when running
-  purge: 1                            # Remove collections with this number or fewer items in
-  sortbyorder: true                   # Set the Sort Title prefix's so that the collections appear in the order in this config file by using 0000, 0001 etc as the prefix
-  logging:                            # Switch on console logging for individual types of data
-    added: true                       #   Display if Movie was added to collection
-    exists: false                     #   Display if Movie already existed in the collection
-    notfound: false                   #   Display if Movie was not found in your Plex library
-    debug: false                      #   Turn on debugging
-    verbose: false                    #   Turn on verbose debugging
+    apiKey: YOUR_PLEX_API_KEY                     # Your plex token https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
+    baseURL: http://127.0.0.1:32400               # Base URL of your Plex server, not app.plex.tv
+  tmdb:                                           # TMDb details
+    apiKey: 83a1d147d36597e5a47d1c7d93e611b8      # APIKey https://developers.themoviedb.org/3/getting-started/introduction
+    adult: false                                  # Some Api calls allow you to specify this, not all
+  trakt:                                          # Trakt details if you use trakt lists
+    oAuth:                                        # Create an app here https://trakt.tv/oauth/applications/new
+      clientId: abcdefg                           #   Trakt ClientId
+      clientSecret: abcdefg                       #   Trakt ClientSecret
+  updateDb: true                                  # Update the localdb when running, needed 
+  purge: 1                                        # Remove collections with this number or fewer items in
+  sortbyorder: true                               # Set the Sort Title prefix's so that the collections appear in the order in this config file by using 0000, 0001 etc as the prefix
+  logging:                                        # Switch on console logging for individual types of data
+    added: true                                   #   Display if Movie was added to collection
+    exists: false                                 #   Display if Movie already existed in the collection
+    notfound: false                               #   Display if Movie was not found in your Plex library
+    debug: false                                  #   Turn on debugging
+    verbose: false                                #   Turn on verbose debugging
   lists:
     #Each collection can use between one and all of the following options (imdb-ids, imdb-search, regexs and trim) combined together if required
 
