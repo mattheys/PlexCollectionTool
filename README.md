@@ -28,6 +28,22 @@ You now have the option to put everything in a configuration file so you can jus
 
 You can combine multiple lists and search terms to add to one collection see the example config.yml.sample
 
+#### Basic Example
+```
+config:
+  plex:
+    apiKey: YOUR_PLEX_API_KEY                     # Your plex token https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
+    baseURL: http://127.0.0.1:32400               # Base URL of your Plex server, not app.plex.tv
+  updateDb: true                                  # Update the localdb when running, needed 
+  purge: 1                                        # Remove collections with this number or fewer items in
+  logging:                                        # Switch on console logging for individual types of data
+    added: true                                   #   Display if Movie was added to collection
+  lists:
+    #Simple example of a public IMDb user list building a collection
+    - name: Marvel Movies
+      imdb-ids:
+        - id: ls041413544
+```
 
 ### Suggestions and other info
 This tool works on all your Movie libraries and you can't currently specify which ones to run it on if you have more than one, this is something I will look to add in the future.
