@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/HouzuoGuo/tiedot/db"
 	"github.com/mitchellh/mapstructure"
@@ -19,10 +21,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	//"time"
 
 	"gopkg.in/yaml.v3"
-	//"strconv"
 )
 
 type arrayFlags []string
@@ -41,13 +41,13 @@ var (
 	searchTerms arrayFlags
 	imdbLists   arrayFlags
 
-	baseURL        string
-	xPlexToken     string
-	path           string
-	cache          bool
-	updateDb       bool
-	purge          int
-	collectionName string
+	baseURL            string
+	xPlexToken         string
+	path               string
+	configFileLocation string
+	updateDb           bool
+	purge              int
+	collectionName     string
 
 	sections getAllSectionsResponse
 
@@ -63,14 +63,7 @@ func init() {
 
 	fmt.Println(version)
 
-	flag.StringVar(&xPlexToken, "a", "", "Your Plex access token")
-	flag.StringVar(&baseURL, "b", "", "The base url of your Plex install")
-	flag.BoolVar(&cache, "cache", false, "Cache http get requests to speed up a 2nd try")
-	flag.StringVar(&collectionName, "c", "", "name of the Collection to add titles to")
-	flag.IntVar(&purge, "p", 0, "Purge movie collections with less than x movies in them")
-	flag.Var(&searchTerms, "s", "Search term to search for")
-	flag.Var(&imdbLists, "i", "Lists to add to collection")
-	flag.BoolVar(&updateDb, "u", false, "Update the local database from Plex")
+	flag.StringVar(&configFileLocation, "c", "config.yml", "Location of Config file")
 
 	flag.Parse()
 
@@ -83,6 +76,8 @@ func init() {
 				panic(parseErr)
 			}
 		}
+	} else {
+		log.Fatalf("No config file found at %s", configFileLocation)
 	}
 
 	if baseURL == "" {
@@ -109,14 +104,50 @@ func init() {
 
 	purge = max(purge, config.Config.Purge)
 
-	if cache {
-		path, _ = os.Getwd()
-		path = path + "\\cache\\"
-		os.MkdirAll(path, 0644)
-	}
 }
 
 func main() {
+
+	// if config.Config.Trakt.OAuth.ClientID != "" && config.Config.Trakt.OAuth.RefreshToken == "" {
+	// 	code := getDeviceCode()
+	// 	fmt.Printf("Please visit %s and enter code %s\r\n", code.VerificationURL, code.UserCode)
+	// 	var token getDeviceTokenResponse
+	// 	var err error
+	//
+	// 	for start := time.Now(); time.Since(start) < time.Duration(code.ExpiresIn)*time.Second; {
+	// 		token, err = getDeviceToken(code.DeviceCode)
+	//
+	// 		if err == nil {
+	// 			break
+	// 		} else if err.Error() != "Pending - waiting for the user to authorize your app" {
+	// 			log.Fatal(err)
+	// 		}
+	// 		fmt.Print(".")
+	// 		time.Sleep(time.Duration(code.Interval) * time.Second)
+	// 	}
+	// 	fmt.Println("")
+	// 	if err == nil {
+	// 		config.Config.Trakt.OAuth.AccessToken = token.AccessToken
+	// 		config.Config.Trakt.OAuth.RefreshToken = token.RefreshToken
+	// 		config.Config.Trakt.OAuth.ExpiresAt = time.Now().Local().Add(time.Duration(token.ExpiresIn) * time.Second)
+	//
+	// 		yml, e := yaml.Marshal(&config)
+	// 		if e == nil {
+	// 			os.Rename(configFileLocation, configFileLocation+".bak")
+	// 			err := ioutil.WriteFile(configFileLocation, yml, 0644)
+	// 			fmt.Println("Authenticated with Trakt :-)")
+	// 			if err != nil {
+	// 				log.Fatal(err)
+	// 			}
+	// 		} else {
+	// 			log.Fatal(e)
+	// 		}
+	//
+	// 	} else {
+	// 		log.Fatal(err)
+	// 	}
+	//
+	// }
 
 	setupDatabase()
 
@@ -129,6 +160,8 @@ func main() {
 	if purge > 0 {
 		purgeCollections(purge)
 	}
+
+	sort := 0
 
 	for _, l := range config.Config.Lists {
 		fmt.Printf("Creating/Updating Collection %s\r\n", l.Name)
@@ -166,17 +199,61 @@ func main() {
 			addMoviesFromRegexSearch(reg.Search, reg.Options, l.Name, &plexCollection)
 		}
 
-		for _, x := range l.Mongosearchs {
-			fmt.Println(x)
+		for _, key := range l.TMDbKeyword {
+			addMovieFromTMDbKeyword(key.ID, l.Name, &plexCollection)
 		}
 
-		plexCollection = getColletionFromTitle(l.Name)
-		setSearchTitle(l.Name)
-
-		if l.Image != "" {
-			setCollectionPoster(l.Image, plexCollection.MediaContainer.Key)
+		for _, con := range l.TMDbCollection.IDs {
+			addMovieFromTMDbCollection(con.ID, l.Name, &plexCollection)
 		}
 
+		for _, list := range l.TMDbList.IDs {
+			addMovieFromTMDbList(list.ID, l.Name, &plexCollection)
+		}
+
+		for _, list := range l.TraktCustomList {
+			addMovieFromTraktCustomList(list.User, list.List, l.Name, &plexCollection)
+		}
+
+		backOff := 1
+
+		for index := 0; index < 6; index++ {
+			plexCollection = getColletionFromTitle(l.Name)
+			if plexCollection.MediaContainer.Key != "" {
+				break
+			}
+			pd("Collection %s not found backing off %d seconds", l.Name, backOff)
+			time.Sleep(time.Duration(backOff) * time.Second)
+			backOff *= 2
+		}
+
+		if plexCollection.MediaContainer.Key != "" {
+
+			if l.TMDbCollection.Poster > 0 {
+				p := getTMDbCollection(l.TMDbCollection.Poster)
+				setCollectionPoster("https://image.tmdb.org/t/p/w600_and_h900_bestv2"+p.PosterPath, plexCollection.MediaContainer.Key)
+			}
+
+			if l.TMDbList.Poster > 0 {
+				p := getTMDbList(l.TMDbCollection.Poster)
+				setCollectionPoster("https://image.tmdb.org/t/p/w600_and_h900_bestv2"+p.PosterPath, plexCollection.MediaContainer.Key)
+			}
+
+			if l.Image != "" {
+				setCollectionPoster(l.Image, plexCollection.MediaContainer.Key)
+			}
+
+			if l.SortPrefix != "" {
+				setSearchTitle(l.Name, l.SortPrefix+" ")
+			} else if config.Config.SortByOrder {
+				setSearchTitle(l.Name, fmt.Sprintf("%04d ", sort))
+				sort++
+			} else {
+				setSearchTitle(l.Name, fmt.Sprintf("%04d ", 0))
+			}
+		} else {
+			pd("Couldn't find %s collection!", l.Name)
+		}
 	}
 
 	if len(collectionName) > 0 {
@@ -194,11 +271,111 @@ func main() {
 			}
 		}
 
-		setSearchTitle(collectionName)
+		setSearchTitle(collectionName, "0000 ")
 
 	}
 
 	fmt.Println("Done")
+}
+
+func addMovieFromTraktCustomList(user string, list string, collectionString string, plexCollection *getCollectionResponse) {
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	l := getTraktCustomListItems(user, list)
+
+	for _, r := range l {
+		sem <- 1
+		go func(imdbid string) {
+			wg.Add(1)
+			addMovieToCollection("imdb", imdbid, collectionString, plexCollection)
+			wg.Done()
+			<-sem
+		}(r.Movie.Ids.Imdb)
+	}
+
+	wg.Wait()
+}
+
+func addMovieFromTMDbCollection(id int, collectionString string, plexCollection *getCollectionResponse) {
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	keywords := getTMDbCollection(id)
+
+	for _, r := range keywords.Parts {
+		sem <- 1
+		go func(TMDbID string) {
+			wg.Add(1)
+			addMovieToCollection("tmdb", TMDbID, collectionString, plexCollection)
+			wg.Done()
+			<-sem
+		}(strconv.Itoa(r.ID))
+	}
+
+	wg.Wait()
+}
+
+func addMovieFromTMDbKeyword(id int, collectionString string, plexCollection *getCollectionResponse) {
+
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	page := 1
+	keywords := getTMDbKeywords(id, page)
+
+	for {
+		for _, r := range keywords.Results {
+			sem <- 1
+			go func(TMDbID string) {
+				wg.Add(1)
+				addMovieToCollection("tmdb", TMDbID, collectionString, plexCollection)
+				wg.Done()
+				<-sem
+			}(strconv.Itoa(r.ID))
+		}
+		if keywords.Page < keywords.TotalPages {
+			page++
+			keywords = getTMDbKeywords(id, page)
+		} else {
+			break
+		}
+	}
+	wg.Wait()
+}
+
+func addMovieFromTMDbList(id int, collectionString string, plexCollection *getCollectionResponse) {
+
+	sem := make(chan int, 4)
+	var wg sync.WaitGroup
+
+	keywords := getTMDbList(id)
+
+	for _, r := range keywords.Items {
+		sem <- 1
+		go func(TMDbID string) {
+			wg.Add(1)
+			addMovieToCollection("tmdb", TMDbID, collectionString, plexCollection)
+			wg.Done()
+			<-sem
+		}(strconv.Itoa(r.ID))
+	}
+
+	wg.Wait()
+}
+
+func pd(text string, variables ...interface{}) {
+	plnif(config.Config.Logging.Debug, text, variables...)
+}
+
+func pv(text string, variables ...interface{}) {
+	plnif(config.Config.Logging.Verbose, text, variables...)
+}
+
+func plnif(condition bool, text string, variables ...interface{}) {
+	if condition {
+		fmt.Printf(text, variables...)
+	}
 }
 
 func setCollectionPoster(imageURL string, plexCollectionKey string) {
@@ -234,9 +411,10 @@ func addMoviesFromRegexSearch(term string, options string, collectionString stri
 			}
 			if matched {
 				if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
-					//fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					plnif(config.Config.Logging.Exists, "  %s already exists in %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
 				} else {
-					fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+					plnif(config.Config.Logging.Added, "  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
 					setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
 					sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
 				}
@@ -253,8 +431,6 @@ func addMoviesFromIMDbList(listID string, collectionString string, plexCollectio
 
 	sem := make(chan int, 4)
 	var wg sync.WaitGroup
-
-	//plexCollection := getColletionFromTitle(collectionString)
 
 	h := make(map[string]string)
 	in := get(fmt.Sprintf("https://www.imdb.com/list/%s/export", listID), h)
@@ -273,7 +449,7 @@ func addMoviesFromIMDbList(listID string, collectionString string, plexCollectio
 		sem <- 1
 		go func(imdbid string) {
 			wg.Add(1)
-			addMovieToCollection(imdbid, collectionString, plexCollection)
+			addMovieToCollection("imdb", imdbid, collectionString, plexCollection)
 			wg.Done()
 			<-sem
 		}(record[1])
@@ -288,7 +464,7 @@ func addMoviesFromIMDbSearch(url string, limit int, collectionName string, plexC
 		sem <- 1
 		go func(IMDbID string) {
 			wg.Add(1)
-			addMovieToCollection(IMDbID, collectionName, plexCollection)
+			addMovieToCollection("imdb", IMDbID, collectionName, plexCollection)
 			wg.Done()
 			<-sem
 		}(imdbid)
@@ -296,28 +472,33 @@ func addMoviesFromIMDbSearch(url string, limit int, collectionName string, plexC
 	wg.Wait()
 }
 
-func addMovieToCollection(imdbid string, collectionString string, plexCollection *getCollectionResponse) {
-	movieResult, i := getMovieFromDbByImdbID(fmt.Sprintf("imdb://%s", imdbid))
+func addMovieToCollection(searchType string, imdbid string, collectionString string, plexCollection *getCollectionResponse) {
+	movieResult, i := getMovieFromDbByImdbID(fmt.Sprintf("%s://%s", searchType, imdbid))
 
 	if i > 0 {
 		if collectionContainsRatingKey(plexCollection, movieResult.MediaContainer.Metadata[0].RatingKey) {
-			//fmt.Printf("  Skipping %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+			plnif(config.Config.Logging.Exists, "  %s already exists in %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+			sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
 		} else {
-			fmt.Printf("  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
+			plnif(config.Config.Logging.Added, "  Adding %s to %s\r\n", movieResult.MediaContainer.Metadata[0].Title, collectionString)
 			setMovieCollection(movieResult.MediaContainer.Metadata[0].RatingKey, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID), collectionString)
 			sectionIds = appendIfMissing(sectionIds, strconv.Itoa(movieResult.MediaContainer.LibrarySectionID))
 		}
 	} else {
-		//fmt.Printf("Movie not found %s\r\n", record[5])
+		plnif(config.Config.Logging.NotFound, "  Movie not found %s\r\n", imdbid)
 	}
 }
 
-func setSearchTitle(collectionString string) {
+func setSearchTitle(collectionString string, prefix string) {
+	pd("  Set search title on %s to %s\r\n", collectionString, prefix)
 	for _, i := range sectionIds {
+		pv("  Checking Section %s\r\n", i)
 		collections := getAllCollections(i)
 		for _, s := range collections.MediaContainer.Metadata {
 			if strings.ToLower(s.Title) == strings.ToLower(collectionString) {
-				updateCollectionSortTitle(s.RatingKey, i, "0000 "+collectionString)
+				pv("  Found collection %s\r\n", s.Title)
+				updateCollectionSortTitle(s.RatingKey, i, prefix+collectionString)
+				break
 			}
 		}
 	}
@@ -326,7 +507,7 @@ func setSearchTitle(collectionString string) {
 func getColletionFromTitle(title string) getCollectionResponse {
 	var retMovie getCollectionResponse
 	for _, section := range sections.MediaContainer.Directory {
-		if section.Type == "movie" { //}&& section.Key == sectionId {
+		if section.Type == "movie" {
 			collections := getAllCollections(section.Key)
 			for _, collection := range collections.MediaContainer.Metadata {
 				if strings.ToLower(title) == strings.ToLower(collection.Title) {
@@ -431,10 +612,9 @@ func unlockMovie(id string, sectionID string) {
 }
 
 func updateCollectionSortTitle(id string, sectionID string, title string) {
-	//https://95-216-243-114.12118fe0782b440eb788f368c20b88f6.plex.direct:42404/library/sections/13/all?type=18&id=317651&includeExternalMedia=1&titleSort.value=0000 1980s Best Movies&titleSort.locked=0&X-Plex-Product=Plex Web&X-Plex-Version=4.43.4&X-Plex-Client-Identifier=ztlomnlzbchaxg9ildt1r7qc&X-Plex-Platform=Firefox&X-Plex-Platform-Version=82.0&X-Plex-Sync-Version=2&X-Plex-Features=external-media,indirect-media&X-Plex-Model=bundled&X-Plex-Device=Windows&X-Plex-Device-Name=Firefox&X-Plex-Device-Screen-Resolution=1536x750,1536x864&X-Plex-Token=5Z-kRYkRgFG4paNVsxR9&X-Plex-Language=en-GB
 
 	url := fmt.Sprintf("%s/library/sections/%s/all?X-Plex-Token=%s&id=%s&type=18&titleSort.value=%s&titleSort.locked=0&includeExternalMedia=1", baseURL, sectionID, xPlexToken, id, url.QueryEscape(title))
-
+	pv(url)
 	req, _ := http.NewRequest("PUT", url, nil)
 
 	req.Header.Add("Accept", "application/json")
@@ -453,6 +633,41 @@ func getCollection(id string) getCollectionResponse {
 
 	sbody := get(url, headers)
 	var xx getCollectionResponse
+	json.Unmarshal(sbody, &xx)
+
+	return xx
+
+}
+
+func getTMDbKeywords(id int, page int) getTMDbKeywordResponse {
+
+	url := fmt.Sprintf("https://api.themoviedb.org/3/keyword/%d/movies?api_key=%s&language=en-US&include_adult=%t&page=%d", id, config.Config.TMDb.APIKey, config.Config.TMDb.Adult, page)
+
+	sbody := get(url, headers)
+	var xx getTMDbKeywordResponse
+	json.Unmarshal(sbody, &xx)
+
+	return xx
+
+}
+
+func getTMDbList(id int) getTMDbListResponse {
+	url := fmt.Sprintf("https://api.themoviedb.org/3/list/%d?api_key=%s&language=en-US", id, config.Config.TMDb.APIKey)
+
+	sbody := get(url, headers)
+	var xx getTMDbListResponse
+	json.Unmarshal(sbody, &xx)
+
+	return xx
+
+}
+
+func getTMDbCollection(id int) getTMDbCollectionResponse {
+
+	url := fmt.Sprintf("https://api.themoviedb.org/3/collection/%d?api_key=%s&language=en-US", id, config.Config.TMDb.APIKey)
+
+	sbody := get(url, headers)
+	var xx getTMDbCollectionResponse
 	json.Unmarshal(sbody, &xx)
 
 	return xx
@@ -514,4 +729,105 @@ func getMovieFromPlex(id string) getMovieResponse {
 	json.Unmarshal(sbody, &xx)
 
 	return xx
+}
+
+func getDeviceCode() getDeviceCodeResponse {
+	var v getDeviceCodeResponse
+
+	requestBody, err := json.Marshal(map[string]string{
+		"client_id": config.Config.Trakt.OAuth.ClientID,
+	})
+
+	e(err)
+
+	resp, err := http.Post("https://api.trakt.tv/oauth/device/code", "application/json", bytes.NewBuffer(requestBody))
+
+	e(err)
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+
+	e(err)
+
+	e(json.Unmarshal(body, &v))
+
+	return v
+}
+
+func getTraktListItems(id string) getTraktListItemsResponse {
+	url := fmt.Sprintf("https://api.trakt.tv/lists/%s/items/movies", id)
+
+	h := map[string]string{"Accept": "application/json", "trakt-api-version": "2", "trakt-api-key": config.Config.Trakt.OAuth.AccessToken}
+
+	sbody := get(url, h)
+	var xx getTraktListItemsResponse
+	json.Unmarshal(sbody, &xx)
+
+	return xx
+}
+
+func getTraktCustomListItems(user string, list string) getTraktListItemsResponse {
+	url := fmt.Sprintf("https://api.trakt.tv/users/%s/lists/%s/items/movies", user, list)
+
+	h := map[string]string{"Content-Type": "application/json", "trakt-api-version": "2", "trakt-api-key": config.Config.Trakt.OAuth.ClientID}
+
+	sbody := get(url, h)
+	var xx getTraktListItemsResponse
+	json.Unmarshal(sbody, &xx)
+
+	return xx
+}
+
+func getDeviceToken(code string) (getDeviceTokenResponse, error) {
+
+	var v getDeviceTokenResponse
+
+	requestBody, err := json.Marshal(map[string]string{
+		"code":          code,
+		"client_id":     config.Config.Trakt.OAuth.ClientID,
+		"client_secret": config.Config.Trakt.OAuth.ClientSecret,
+	})
+
+	e(err)
+
+	resp, err := http.Post("https://api.trakt.tv/oauth/device/token", "application/json", bytes.NewBuffer(requestBody))
+
+	e(err)
+
+	if resp.StatusCode == 200 {
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+
+		e(err)
+
+		e(json.Unmarshal(body, &v))
+	}
+
+	if resp.StatusCode == 400 {
+		err = fmt.Errorf("Pending - waiting for the user to authorize your app")
+	}
+
+	if resp.StatusCode == 404 || resp.StatusCode == 409 || resp.StatusCode == 410 || resp.StatusCode == 418 {
+		switch resp.StatusCode {
+		case 404:
+			err = fmt.Errorf("Not Found - invalid device_code")
+		case 409:
+			err = fmt.Errorf("Already Used - user already approved this code")
+		case 410:
+			err = fmt.Errorf("Expired - the tokens have expired, restart the process")
+		case 418:
+			err = fmt.Errorf("Denied - user explicitly denied this code")
+		default:
+		}
+	}
+
+	return v, err
+}
+
+func e(e error) {
+	if e != nil {
+		log.Fatal(e)
+	}
 }

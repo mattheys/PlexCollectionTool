@@ -2,8 +2,22 @@ config:
   plex:
     apiKey: YOUR_PLEX_API_KEY         # Your plex token https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/
     baseURL: http://127.0.0.1:32400   # Base URL of your Plex server, not app.plex.tv
+  tmdb:
+    apiKey: 83a1d147d36597e5a47d1c7d93e611b8
+    adult: false
+  trakt:
+    oAuth:
+      clientId: 83a1d147d36597e5a47d1c7d93e611b883a1d147d36597e5a47d1c7d93e611b8
+      clientSecret: 83a1d147d36597e5a47d1c7d93e611b883a1d147d36597e5a47d1c7d93e611b8
   updateDb: true                      # Update the localdb when running
   purge: 1                            # Remove collections with this number or fewer items in
+  sortbyorder: true                   # Set the Sort Title prefix's so that the collections appear in the order in this config file by using 0000, 0001 etc as the prefix
+  logging:                            # Switch on console logging for individual types of data
+    added: true                       #   Display if Movie was added to collection
+    exists: false                     #   Display if Movie already existed in the collection
+    notfound: false                   #   Display if Movie was not found in your Plex library
+    debug: false                      #   Turn on debugging
+    verbose: false                    #   Turn on verbose debugging
   lists:
     #Each collection can use between one and all of the following options (imdb-ids, imdb-search, regexs and trim) combined together if required
 
@@ -12,10 +26,11 @@ config:
       imdb-ids:
         - id: ls041413544
 
-    #Simple example of a public IMDb user list building a collection
+    #Simple example of a public IMDb user list building a collection overriding the default sort prefix
     - name: DC Movies
       imdb-ids:
         - id: ls041927031
+      sortprefix: "0001 "
 
     #Simple example of multiple public IMDb user lists building a collection
     - name: Comic Book Movies
@@ -55,3 +70,28 @@ config:
     #to ensure that they aren't locked if you are also letting Plex build your collections too.
     - name: Collection I no longer want
       trim: true
+
+    #Example of using a public user list from Trakt
+    - name: Oscars
+      trakt-custom-list:
+        - user: catarinar13
+          list: oscars
+
+    #Example of using a TMDb Keyword
+    - name: After Credit Stinger
+      tmdb-keyword-ids:
+        - id: 179430
+
+    #Example of using a TBDb List
+    - name: Top 50 Grossing Films of All Time (Worldwide)
+      tmdb-list:
+        ids:
+          - id: 10
+        poster: 10
+
+    #Example of using a TMDb Colleciton
+    - name: James Bond TMDb
+      tmdb-collection:
+        ids:
+          - id: 645
+        poster: 645

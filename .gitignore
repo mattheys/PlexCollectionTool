@@ -7,3 +7,4 @@ db/
 *.exe
 __debug_bin
 config.yml
+config.yml.bak
